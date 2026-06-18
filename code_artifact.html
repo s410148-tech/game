@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>霓虹貪食蛇街機 Neon Snake Arcade</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Tone.js for Synthesizer Sound Effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- Google Fonts - Press Start 2P for Arcade look, Inter for UI -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Press+Start+2P&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at center, #111827 0%, #030712 100%);
+            overflow-x: hidden;
+        }
+        .arcade-font {
+            font-family: 'Press Start 2P', cursive;
+        }
+        /* Neon glowing effects */
+        .neon-border-green {
+            box-shadow: 0 0 10px #10B981, inset 0 0 5px #10B981;
+        }
+        .neon-border-pink {
+            box-shadow: 0 0 15px #EC4899, inset 0 0 8px #EC4899;
+        }
+        .neon-text-pink {
+            text-shadow: 0 0 8px #EC4899, 0 0 15px #F472B6;
+        }
+        .neon-text-green {
+            text-shadow: 0 0 8px #10B981, 0 0 15px #34D399;
+        }
+        .neon-text-blue {
+            text-shadow: 0 0 8px #3B82F6, 0 0 15px #60A5FA;
+        }
+        .neon-text-orange {
+            text-shadow: 0 0 8px #F97316, 0 0 15px #FB923C;
+        }
+        /* Shake effect on crash */
+        @keyframes shake {
+            0%, 100% { transform: translate(0, 0); }
+            10%, 30%, 50%, 70%, 90% { transform: translate(-4px, 2px); }
+            20%, 40%, 60%, 80% { transform: translate(4px, -2px); }
+        }
+        .shake-element {
+            animation: shake 0.4s ease-in-out;
+        }
+        /* Custom scrollbar for styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-gray-100 flex flex-col justify-between p-3 md:p-6 select-none">
+
+    <!-- Top Bar Info -->
+    <header class="w-full max-w-4xl mx-auto flex flex-wrap justify-between items-center gap-4 mb-3 bg-gray-900/60 backdrop-blur-md p-4 rounded-2xl border border-gray-800/80">
+        <div class="flex items-center gap-3">
+            <div class="bg-gradient-to-tr from-pink-500 to-indigo-600 p-2.5 rounded-xl shadow-lg shadow-pink-500/20">
+                <i class="fa-solid fa-gamepad text-xl text-white"></i>
+            </div>
+            <div>
+                <h1 class="text-lg md:text-xl font-extrabold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-pink-500 via-purple-400 to-indigo-400">NEON SNAKE</h1>
+                <p class="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">Retro Cyber Arcade</p>
+            </div>
+        </div>
+        
+        <!-- Scoreboard -->
+        <div class="flex gap-4 items-center">
+            <div class="bg-gray-950/80 px-4 py-2 rounded-xl border border-pink-500/30 flex flex-col items-center min-w-[80px]">
+                <span class="text-[9px] text-pink-400 font-bold tracking-widest uppercase">SCORE</span>
+                <span id="score" class="text-lg font-black text-white arcade-font neon-text-pink">0</span>
+            </div>
+            <div id="combo-badge" class="bg-gray-950/80 px-3 py-2 rounded-xl border border-orange-500/30 flex flex-col items-center min-w-[70px] hidden animate-bounce">
+                <span class="text-[9px] text-orange-400 font-bold tracking-widest uppercase">COMBO</span>
+                <span id="combo-val" class="text-lg font-black text-white arcade-font neon-text-orange">1x</span>
+            </div>
+            <div class="bg-gray-950/80 px-4 py-2 rounded-xl border border-emerald-500/30 flex flex-col items-center min-w-[80px]">
+                <span class="text-[9px] text-emerald-400 font-bold tracking-widest uppercase">HI-SCORE</span>
+                <span id="high-score" class="text-lg font-black text-white arcade-font neon-text-green">0</span>
+            </div>
+        </div>
+        
+        <!-- Quick Settings Tooltips -->
+        <div class="flex gap-2">
+            <button id="btn-sound" class="p-2.5 bg-gray-800/80 hover:bg-gray-700/80 rounded-xl transition text-pink-400 hover:text-pink-300 border border-gray-700/50" title="切換音效">
+                <i id="sound-icon" class="fa-solid fa-volume-high text-lg"></i>
+            </button>
+            <button id="btn-help" class="p-2.5 bg-gray-800/80 hover:bg-gray-700/80 rounded-xl transition text-indigo-400 hover:text-indigo-300 border border-gray-700/50" title="遊戲說明">
+                <i class="fa-solid fa-circle-question text-lg"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Game Section -->
+    <main class="flex-1 flex flex-col lg:flex-row items-center justify-center gap-6 max-w-5xl mx-auto w-full mb-4">
+        
+        <!-- Game Canvas Box -->
+        <div id="game-container-wrapper" class="relative bg-gray-950 p-2.5 rounded-3xl border-2 border-pink-500/50 shadow-[0_0_25px_rgba(236,72,153,0.15)] max-w-md w-full aspect-square flex items-center justify-center overflow-hidden">
+            <canvas id="gameCanvas" class="w-full h-full rounded-2xl bg-gray-950/90" width="400" height="400"></canvas>
+            
+            <!-- START / MENUS OVERLAY -->
+            <div id="menu-overlay" class="absolute inset-0 bg-gray-950/95 flex flex-col items-center justify-center p-6 text-center z-10 rounded-3xl">
+                <!-- Title inside game container -->
+                <div class="mb-6 space-y-1">
+                    <span class="text-xs text-pink-400 font-bold tracking-widest uppercase">Select Mode & Run</span>
+                    <h2 class="text-2xl md:text-3xl font-black text-white neon-text-pink tracking-tight">NEON SNAKE</h2>
+                </div>
+
+                <!-- Game Settings Configuration -->
+                <div class="w-full max-w-xs space-y-4 mb-6">
+                    <div>
+                        <label class="block text-xs text-left font-bold text-gray-400 mb-2 uppercase tracking-wider">選擇難度</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button onclick="setDifficulty('easy')" id="diff-easy" class="py-2 px-1 rounded-xl text-xs font-bold border transition bg-gray-800/50 border-gray-700 text-gray-300 hover:bg-gray-700/50">簡單</button>
+                            <button onclick="setDifficulty('medium')" id="diff-medium" class="py-2 px-1 rounded-xl text-xs font-bold border transition bg-pink-500/20 border-pink-500 text-pink-400 shadow-[0_0_8px_rgba(236,72,153,0.3)]">中等</button>
+                            <button onclick="setDifficulty('hard')" id="diff-hard" class="py-2 px-1 rounded-xl text-xs font-bold border transition bg-gray-800/50 border-gray-700 text-gray-300 hover:bg-gray-700/50">困難</button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-left font-bold text-gray-400 mb-2 uppercase tracking-wider">場地樣式</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="setMode('classic')" id="mode-classic" class="py-2 px-2 rounded-xl text-xs font-bold border transition bg-pink-500/20 border-pink-500 text-pink-400 shadow-[0_0_8px_rgba(236,72,153,0.3)]">經典無障礙</button>
+                            <button onclick="setMode('obstacle')" id="mode-obstacle" class="py-2 px-2 rounded-xl text-xs font-bold border transition bg-gray-800/50 border-gray-700 text-gray-300 hover:bg-gray-700/50">霓虹迷宮</button>
+                        </div>
+                    </div>
+                </div>
+
+                <button id="btn-start" class="w-full max-w-xs py-4 px-6 bg-gradient-to-r from-pink-500 to-indigo-600 hover:from-pink-600 hover:to-indigo-700 text-white rounded-2xl font-bold tracking-wider transition-all duration-300 transform active:scale-95 shadow-lg shadow-pink-500/30 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-play"></i>
+                    <span>START MISSION</span>
+                </button>
+            </div>
+
+            <!-- GAME OVER OVERLAY -->
+            <div id="gameover-overlay" class="absolute inset-0 bg-gray-950/95 flex flex-col items-center justify-center p-6 text-center z-10 rounded-3xl hidden">
+                <div class="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center mb-4">
+                    <i class="fa-solid fa-triangle-exclamation text-3xl text-red-500"></i>
+                </div>
+                <h3 class="text-3xl font-black text-red-500 tracking-wider mb-2 arcade-font" style="text-shadow: 0 0 10px rgba(239, 68, 68, 0.5)">GAME OVER</h3>
+                <p class="text-gray-400 text-sm mb-4">系統超載！蛇身已損毀。</p>
+                
+                <div class="grid grid-cols-2 gap-4 w-full max-w-xs bg-gray-900/50 p-4 rounded-2xl border border-gray-800/80 mb-6">
+                    <div>
+                        <span class="text-[10px] block text-gray-400 uppercase tracking-widest font-semibold">最終得分</span>
+                        <span id="final-score" class="text-2xl font-black text-pink-400">0</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] block text-gray-400 uppercase tracking-widest font-semibold">歷史最高</span>
+                        <span id="final-best" class="text-2xl font-black text-emerald-400">0</span>
+                    </div>
+                </div>
+
+                <button id="btn-restart" class="w-full max-w-xs py-3.5 px-6 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-2xl font-bold tracking-wider transition-all duration-300 transform active:scale-95 shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-rotate-left"></i>
+                    <span>REBOOT SYSTEM</span>
+                </button>
+            </div>
+
+            <!-- PAUSE OVERLAY -->
+            <div id="pause-overlay" class="absolute inset-0 bg-gray-950/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-10 rounded-3xl hidden">
+                <div class="w-16 h-16 rounded-full bg-blue-500/10 border border-blue-500/30 flex items-center justify-center mb-4 animate-pulse">
+                    <i class="fa-solid fa-pause text-2xl text-blue-400"></i>
+                </div>
+                <h3 class="text-2xl font-black text-blue-400 tracking-wider mb-1 arcade-font neon-text-blue">PAUSED</h3>
+                <p class="text-gray-300 text-xs mb-6 uppercase tracking-wider">任務暫停中，按空白鍵或下方按鈕繼續</p>
+                
+                <button id="btn-resume" class="w-full max-w-xs py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold tracking-wider transition-all duration-300 shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-play"></i>
+                    <span>RESUME</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Right Side Panel: Legend & Controls -->
+        <div class="w-full max-w-sm flex flex-col gap-4">
+            <!-- Legend Block (Food type and indicators) -->
+            <div class="bg-gray-900/60 backdrop-blur-md p-4 rounded-2xl border border-gray-800/80">
+                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <i class="fa-solid fa-circle-nodes text-pink-500"></i>
+                    <span>戰術信號燈 (Food Grid)</span>
+                </h4>
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                    <div class="flex items-center gap-2.5 p-2 bg-gray-950/40 rounded-xl border border-gray-800">
+                        <span class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#10B981]"></span>
+                        <div>
+                            <p class="font-semibold text-gray-200">能量核心</p>
+                            <p class="text-[10px] text-gray-400">+100 分</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2.5 p-2 bg-gray-950/40 rounded-xl border border-gray-800">
+                        <span class="w-3 h-3 rounded-full bg-yellow-400 animate-pulse shadow-[0_0_8px_#F59E0B]"></span>
+                        <div>
+                            <p class="font-semibold text-gray-200">黃金核心</p>
+                            <p class="text-[10px] text-gray-400">+300 分 (稀有)</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2.5 p-2 bg-gray-950/40 rounded-xl border border-gray-800">
+                        <span class="w-3 h-3 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_#06B6D4]"></span>
+                        <div>
+                            <p class="font-semibold text-gray-200">時間膨脹</p>
+                            <p class="text-[10px] text-gray-400">速度減半 5s</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2.5 p-2 bg-gray-950/40 rounded-xl border border-gray-800">
+                        <span class="w-3 h-3 rounded-full bg-fuchsia-500 animate-pulse shadow-[0_0_8px_#D946EF]"></span>
+                        <div>
+                            <p class="font-semibold text-gray-200">空間塌陷</p>
+                            <p class="text-[10px] text-gray-400">蛇身縮短 2 節</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2.5 p-2 bg-gray-950/40 rounded-xl border border-gray-800">
+                        <span class="w-3 h-3 rounded-full bg-white animate-pulse shadow-[0_0_8px_#FFFFFF]"></span>
+                        <div>
+                            <p class="font-semibold text-gray-200">電磁防禦罩</p>
+                            <p class="text-[10px] text-gray-400">抵擋1次任何碰撞</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2.5 p-2 bg-gray-950/40 rounded-xl border border-gray-800">
+                        <span class="w-3.5 h-3.5 rounded-full border-2 border-dashed border-orange-500 animate-spin"></span>
+                        <div>
+                            <p class="font-semibold text-gray-200">量子傳送門</p>
+                            <p class="text-[10px] text-gray-400">雙向蟲洞空間折疊</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-3 p-2 bg-red-500/10 rounded-xl border border-red-500/20 flex items-center gap-2.5 text-xs">
+                    <span class="text-red-500 font-bold text-sm"><i class="fa-solid fa-skull"></i></span>
+                    <div>
+                        <p class="font-semibold text-red-300">AI 幽靈病毒 (Glitch)</p>
+                        <p class="text-[10px] text-red-400/80">自動移動，碰觸即毀(除非有護盾)</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mobile Controls (Virtual D-pad) -->
+            <div class="bg-gray-900/60 backdrop-blur-md p-4 rounded-2xl border border-gray-800/80 flex flex-col items-center">
+                <span class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-3">行動裝置感應虛擬手把</span>
+                
+                <!-- D-pad Layout -->
+                <div class="relative w-40 h-40">
+                    <!-- Up -->
+                    <button id="ctrl-up" class="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-12 bg-gray-800 hover:bg-gray-700 active:bg-pink-500 rounded-xl flex items-center justify-center text-lg font-bold border border-gray-700/60 shadow-md transition-all active:scale-95 text-gray-200">
+                        <i class="fa-solid fa-chevron-up"></i>
+                    </button>
+                    <!-- Left -->
+                    <button id="ctrl-left" class="absolute top-1/2 left-0 -translate-y-1/2 w-12 h-12 bg-gray-800 hover:bg-gray-700 active:bg-pink-500 rounded-xl flex items-center justify-center text-lg font-bold border border-gray-700/60 shadow-md transition-all active:scale-95 text-gray-200">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <!-- Center Pause/Reset -->
+                    <button id="ctrl-pause" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 bg-gray-950 hover:bg-gray-900 active:bg-blue-600 rounded-full flex items-center justify-center text-sm font-bold border-2 border-indigo-500/50 shadow-inner text-indigo-400 active:text-white">
+                        <i class="fa-solid fa-pause"></i>
+                    </button>
+                    <!-- Right -->
+                    <button id="ctrl-right" class="absolute top-1/2 right-0 -translate-y-1/2 w-12 h-12 bg-gray-800 hover:bg-gray-700 active:bg-pink-500 rounded-xl flex items-center justify-center text-lg font-bold border border-gray-700/60 shadow-md transition-all active:scale-95 text-gray-200">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                    <!-- Down -->
+                    <button id="ctrl-down" class="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-12 bg-gray-800 hover:bg-gray-700 active:bg-pink-500 rounded-xl flex items-center justify-center text-lg font-bold border border-gray-700/60 shadow-md transition-all active:scale-95 text-gray-200">
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Instruction Info Box (Help Modal Modal UI) -->
+    <div id="help-modal" class="fixed inset-0 bg-gray-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-gray-900 border border-gray-800 max-w-md w-full rounded-3xl p-6 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+                <h4 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-circle-question text-indigo-500"></i>
+                    <span>NEON SNAKE 指南</span>
+                </h4>
+                <button id="btn-close-help" class="text-gray-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-3 text-sm text-gray-300 leading-relaxed">
+                <p>🐉 <strong>高級控制與新機制：</strong></p>
+                <ul class="list-disc list-inside pl-2 space-y-1 text-xs">
+                    <li><strong>🛡️ 電磁防禦罩 (白核心)：</strong> 拾取後在蛇頭生成白圈防護罩，抵擋一次致命失誤（撞牆、自己、障礙物、病毒）。</li>
+                    <li><strong>🌀 量子傳送門：</strong> 藍與橘色漩渦。進入其一將從另一個噴射射出！請善用轉移！</li>
+                    <li><strong>💀 AI 幽靈病毒：</strong> 在地圖中游蕩的紅色骷髏，定時隨機變向。必須避開！</li>
+                    <li><strong>🔥 Combo 連擊：</strong> 吃到食物會累積連擊條。連擊愈高分數加成愈多！浮動字體會提示 Combo 倍率。</li>
+                </ul>
+
+                <p>💎 <strong>原版玩法規則：</strong></p>
+                <ul class="list-disc list-inside pl-2 space-y-1 text-xs">
+                    <li><strong>經典模式：</strong> 可穿透邊界，從另一邊出現。</li>
+                    <li><strong>霓虹迷宮模式：</strong> 四周有實體牆壁、中央隨機生成障礙物。</li>
+                </ul>
+            </div>
+            
+            <button id="btn-agree" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition text-sm">
+                我明白了，開始戰鬥！
+            </button>
+        </div>
+    </div>
+
+    <!-- Footer Area -->
+    <footer class="text-center text-[11px] text-gray-500 max-w-4xl mx-auto w-full mt-2">
+        <p>© 2026 Neon Snake Arcade. Built for immersive, interactive fun. Keyboard WASD Supported.</p>
+    </footer>
+
+    <!-- JavaScript Game Logic -->
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const highScoreEl = document.getElementById('high-score');
+        const finalScoreEl = document.getElementById('final-score');
+        const finalBestEl = document.getElementById('final-best');
+        const menuOverlay = document.getElementById('menu-overlay');
+        const gameOverOverlay = document.getElementById('gameover-overlay');
+        const pauseOverlay = document.getElementById('pause-overlay');
+        const wrapper = document.getElementById('game-container-wrapper');
+        
+        // Combo UI Elements
+        const comboBadge = document.getElementById('combo-badge');
+        const comboVal = document.getElementById('combo-val');
+        
+        // Buttons
+        const btnStart = document.getElementById('btn-start');
+        const btnRestart = document.getElementById('btn-restart');
+        const btnResume = document.getElementById('btn-resume');
+        const btnSound = document.getElementById('btn-sound');
+        const btnHelp = document.getElementById('btn-help');
+        const btnCloseHelp = document.getElementById('btn-close-help');
+        const btnAgree = document.getElementById('btn-agree');
+        const helpModal = document.getElementById('help-modal');
+        const soundIcon = document.getElementById('sound-icon');
+
+        // Control Keys
+        const ctrlUp = document.getElementById('ctrl-up');
+        const ctrlDown = document.getElementById('ctrl-down');
+        const ctrlLeft = document.getElementById('ctrl-left');
+        const ctrlRight = document.getElementById('ctrl-right');
+        const ctrlPause = document.getElementById('ctrl-pause');
+
+        // Game Configuration
+        const gridSize = 20;
+        const tileCount = canvas.width / gridSize;
+        
+        // Sound and Music States
+        let soundMuted = false;
+        let synth = null;
+        let polySynth = null;
+        
+        // Game States
+        let snake = [];
+        let direction = { x: 1, y: 0 };
+        let nextDirection = { x: 1, y: 0 };
+        let food = { x: 5, y: 5, type: 'normal' };
+        let obstacles = [];
+        let score = 0;
+        let highScore = localStorage.getItem('snake_neon_high') || 0;
+        let gameLoopInterval = null;
+        let currentDifficulty = 'medium'; // easy, medium, hard
+        let currentMode = 'classic'; // classic, obstacle
+        let baseSpeed = 120; // in milliseconds
+        let currentSpeed = 120;
+        let isPaused = false;
+        let isPlaying = false;
+        let particles = [];
+        
+        // Brand New Advanced Gameplay States
+        let portalA = { x: 3, y: 3, color: '#F97316' }; // Orange Portal
+        let portalB = { x: 16, y: 16, color: '#3B82F6' }; // Blue Portal
+        let portalCooldown = 0; // Prevent infinite instant warp loop
+        
+        let hasShield = false; // Is Shield Core currently active?
+        let activeShieldPulse = 0; // Visual shield outer pulse sine
+        
+        let glitchVirus = { x: 10, y: 4, vx: 1, vy: 0, moveTick: 0 }; // AI Ghost Virus block
+        
+        let comboCount = 0;
+        let comboMaxTimer = 35; // Steps allowed between food
+        let comboTimer = 0;
+        
+        let floatingTexts = []; // Dynamically animated scores (+100, x2 Combo)
+        
+        // Power-up status timers
+        let powerUpTimers = {
+            slow: 0, // Slow motion timer
+        };
+
+        highScoreEl.textContent = highScore;
+
+        function initAudio() {
+            if (!synth) {
+                // Monophonic synth for standard chime effects
+                synth = new Tone.Synth({
+                    oscillator: { type: "square" },
+                    envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.1 }
+                }).toDestination();
+                
+                // Polyphonic synth for wider sounds
+                polySynth = new Tone.PolySynth(Tone.Synth).toDestination();
+                polySynth.set({
+                    oscillator: { type: "triangle" },
+                    envelope: { attack: 0.02, decay: 0.2, sustain: 0.2, release: 0.1 }
+                });
+            }
+        }
+
+        function playSound(type) {
+            if (soundMuted) return;
+            try {
+                // Ensure Tone context is running
+                if (Tone.context.state !== 'running') {
+                    Tone.start();
+                }
+                initAudio();
+
+                if (type === 'eat') {
+                    synth.triggerAttackRelease("C5", "8n");
+                    setTimeout(() => { synth.triggerAttackRelease("G5", "8n"); }, 80);
+                } else if (type === 'gold') {
+                    polySynth.triggerAttackRelease(["E5", "G5", "B5"], "8n");
+                } else if (type === 'powerup') {
+                    synth.triggerAttackRelease("A4", "16n");
+                    setTimeout(() => synth.triggerAttackRelease("C5", "16n"), 60);
+                    setTimeout(() => synth.triggerAttackRelease("E5", "16n"), 120);
+                    setTimeout(() => synth.triggerAttackRelease("A5", "8n"), 180);
+                } else if (type === 'shield-break') {
+                    synth.triggerAttackRelease("F3", "4n");
+                    setTimeout(() => { synth.triggerAttackRelease("B2", "2n"); }, 100);
+                } else if (type === 'teleport') {
+                    synth.triggerAttackRelease("F5", "16n");
+                    setTimeout(() => { synth.triggerAttackRelease("C6", "16n"); }, 40);
+                } else if (type === 'combo') {
+                    synth.triggerAttackRelease("D5", "16n");
+                    setTimeout(() => { synth.triggerAttackRelease("A5", "16n"); }, 50);
+                } else if (type === 'gameover') {
+                    synth.triggerAttackRelease("D3", "4n");
+                    setTimeout(() => { synth.triggerAttackRelease("C3", "4n"); }, 150);
+                    setTimeout(() => { synth.triggerAttackRelease("A2", "2n"); }, 300);
+                } else if (type === 'click') {
+                    synth.triggerAttackRelease("F4", "16n");
+                }
+            } catch (error) {
+                console.log("Audio play deferred or blocked by browser:", error);
+            }
+        }
+
+        // Toggle Sound Mute
+        btnSound.addEventListener('click', () => {
+            soundMuted = !soundMuted;
+            if (soundMuted) {
+                soundIcon.className = "fa-solid fa-volume-xmark text-lg";
+                btnSound.classList.add('border-red-500/50', 'text-red-400');
+                btnSound.classList.remove('border-gray-700/50', 'text-pink-400');
+            } else {
+                soundIcon.className = "fa-solid fa-volume-high text-lg";
+                btnSound.classList.remove('border-red-500/50', 'text-red-400');
+                btnSound.classList.add('border-gray-700/50', 'text-pink-400');
+                // Try initializing context on user interaction
+                initAudio();
+                playSound('click');
+            }
+        });
+
+        function setDifficulty(diff) {
+            currentDifficulty = diff;
+            ['easy', 'medium', 'hard'].forEach(d => {
+                const btn = document.getElementById(`diff-${d}`);
+                if (d === diff) {
+                    btn.className = "py-2 px-1 rounded-xl text-xs font-bold border transition bg-pink-500/20 border-pink-500 text-pink-400 shadow-[0_0_8px_rgba(236,72,153,0.3)]";
+                } else {
+                    btn.className = "py-2 px-1 rounded-xl text-xs font-bold border transition bg-gray-800/50 border-gray-700 text-gray-300 hover:bg-gray-700/50";
+                }
+            });
+
+            if (diff === 'easy') baseSpeed = 160;
+            else if (diff === 'medium') baseSpeed = 110;
+            else if (diff === 'hard') baseSpeed = 70;
+            
+            playSound('click');
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            ['classic', 'obstacle'].forEach(m => {
+                const btn = document.getElementById(`mode-${m}`);
+                if (m === mode) {
+                    btn.className = "py-2 px-2 rounded-xl text-xs font-bold border transition bg-pink-500/20 border-pink-500 text-pink-400 shadow-[0_0_8px_rgba(236,72,153,0.3)]";
+                } else {
+                    btn.className = "py-2 px-2 rounded-xl text-xs font-bold border transition bg-gray-800/50 border-gray-700 text-gray-300 hover:bg-gray-700/50";
+                }
+            });
+            playSound('click');
+        }
+
+        // Generate Maze Obstacles
+        function generateObstacles() {
+            obstacles = [];
+            if (currentMode !== 'obstacle') return;
+
+            // Simple symetric layout helper
+            const addObs = (x, y) => {
+                obstacles.push({ x, y });
+            };
+
+            // Horizontal & Vertical Cyber Bars
+            for (let i = 4; i < 7; i++) {
+                addObs(i, 4);
+                addObs(tileCount - 1 - i, 4);
+                addObs(i, tileCount - 5);
+                addObs(tileCount - 1 - i, tileCount - 5);
+            }
+
+            for (let i = 8; i < 12; i++) {
+                addObs(4, i);
+                addObs(tileCount - 5, i);
+            }
+        }
+
+        // Start/Restart Game Initialization
+        function initGame() {
+            snake = [
+                { x: 10, y: 10 },
+                { x: 9, y: 10 },
+                { x: 8, y: 10 }
+            ];
+            direction = { x: 1, y: 0 };
+            nextDirection = { x: 1, y: 0 };
+            score = 0;
+            scoreEl.textContent = score;
+            
+            comboCount = 0;
+            comboTimer = 0;
+            comboBadge.classList.add('hidden');
+            
+            hasShield = false;
+            portalCooldown = 0;
+            floatingTexts = [];
+            
+            // Randomize portals positions (ensure not overlapping head/obstacles)
+            portalA.x = 2 + Math.floor(Math.random() * 5);
+            portalA.y = 2 + Math.floor(Math.random() * (tileCount - 4));
+            
+            portalB.x = tileCount - 3 - Math.floor(Math.random() * 5);
+            portalB.y = 2 + Math.floor(Math.random() * (tileCount - 4));
+
+            // Initialize Glitch AI Virus
+            glitchVirus.x = Math.floor(tileCount / 2);
+            glitchVirus.y = 2;
+            glitchVirus.vx = Math.random() > 0.5 ? 1 : -1;
+            glitchVirus.vy = 0;
+            glitchVirus.moveTick = 0;
+
+            generateObstacles();
+            spawnFood();
+            particles = [];
+            powerUpTimers.slow = 0;
+            currentSpeed = baseSpeed;
+
+            isPaused = false;
+            isPlaying = true;
+            
+            menuOverlay.classList.add('hidden');
+            gameOverOverlay.classList.add('hidden');
+            pauseOverlay.classList.add('hidden');
+
+            // Reset Game Loop speed
+            if (gameLoopInterval) clearInterval(gameLoopInterval);
+            gameLoopInterval = setInterval(gameStep, currentSpeed);
+        }
+
+        // Spawn food item with varying properties
+        function spawnFood() {
+            let valid = false;
+            let fx, fy;
+
+            while (!valid) {
+                fx = Math.floor(Math.random() * tileCount);
+                fy = Math.floor(Math.random() * tileCount);
+                valid = true;
+
+                // Check collisions with snake body
+                for (let part of snake) {
+                    if (part.x === fx && part.y === fy) {
+                        valid = false;
+                        break;
+                    }
+                }
+
+                // Check collisions with obstacles
+                if (valid) {
+                    for (let obs of obstacles) {
+                        if (obs.x === fx && obs.y === fy) {
+                            valid = false;
+                            break;
+                        }
+                    }
+                }
+
+                // Prevent spawning on top of Portals
+                if (valid) {
+                    if ((fx === portalA.x && fy === portalA.y) || (fx === portalB.x && fy === portalB.y)) {
+                        valid = false;
+                    }
+                }
+            }
+
+            // Probability calculation for Food Types
+            // 60% Normal, 15% Gold, 10% Slow Mo, 5% Shrinkage, 10% Shield Core
+            const rand = Math.random();
+            let type = 'normal';
+            if (rand > 0.90) {
+                type = 'shield';
+            } else if (rand > 0.85) {
+                type = 'shrink';
+            } else if (rand > 0.75) {
+                type = 'slow';
+            } else if (rand > 0.60) {
+                type = 'gold';
+            }
+
+            food = { x: fx, y: fy, type: type };
+        }
+
+        function gameStep() {
+            if (isPaused || !isPlaying) return;
+
+            // Apply direction lock-in
+            direction = nextDirection;
+
+            // Calc next head position
+            const head = {
+                x: snake[0].x + direction.x,
+                y: snake[0].y + direction.y
+            };
+
+            // Manage Portal Cooldown
+            if (portalCooldown > 0) portalCooldown--;
+
+            // Handle Portal Collisions & Teleportation physics
+            if (portalCooldown === 0) {
+                if (head.x === portalA.x && head.y === portalA.y) {
+                    head.x = portalB.x;
+                    head.y = portalB.y;
+                    portalCooldown = 5; // prevent immediate back-and-forth warp
+                    playSound('teleport');
+                    createExplosion(portalB.x * gridSize + gridSize/2, portalB.y * gridSize + gridSize/2, 'portal');
+                    addFloatingText(portalB.x, portalB.y, "QUANTUM SHIFT", "#F97316");
+                } else if (head.x === portalB.x && head.y === portalB.y) {
+                    head.x = portalA.x;
+                    head.y = portalA.y;
+                    portalCooldown = 5;
+                    playSound('teleport');
+                    createExplosion(portalA.x * gridSize + gridSize/2, portalA.y * gridSize + gridSize/2, 'portal');
+                    addFloatingText(portalA.x, portalA.y, "QUANTUM SHIFT", "#3B82F6");
+                }
+            }
+
+            // Update Combo timer countdown
+            if (comboCount > 0) {
+                comboTimer--;
+                if (comboTimer <= 0) {
+                    comboCount = 0;
+                    comboBadge.classList.add('hidden');
+                } else {
+                    comboVal.textContent = `${comboCount}x`;
+                }
+            }
+
+            // Move the AI Glitch Virus
+            updateGlitchVirus();
+
+            // Power-up Timer Logic
+            if (powerUpTimers.slow > 0) {
+                powerUpTimers.slow--;
+                if (powerUpTimers.slow === 0) {
+                    adjustSpeed(baseSpeed);
+                }
+            }
+
+            // Wall Collision detection based on Mode
+            let collided = false;
+            if (currentMode === 'obstacle') {
+                if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+                    collided = true;
+                }
+            } else {
+                // Wrap around classic mode
+                if (head.x < 0) head.x = tileCount - 1;
+                else if (head.x >= tileCount) head.x = 0;
+
+                if (head.y < 0) head.y = tileCount - 1;
+                else if (head.y >= tileCount) head.y = 0;
+            }
+
+            // Obstacle collision
+            if (!collided) {
+                for (let obs of obstacles) {
+                    if (head.x === obs.x && head.y === obs.y) {
+                        collided = true;
+                        break;
+                    }
+                }
+            }
+
+            // Self-Collision Check
+            if (!collided) {
+                for (let i = 1; i < snake.length; i++) {
+                    if (head.x === snake[i].x && head.y === snake[i].y) {
+                        collided = true;
+                        break;
+                    }
+                }
+            }
+
+            // Virus Collision Check
+            if (!collided) {
+                if (head.x === glitchVirus.x && head.y === glitchVirus.y) {
+                    collided = true;
+                }
+            }
+
+            // Collision resolution with Electromagnet Shield
+            if (collided) {
+                if (hasShield) {
+                    hasShield = false;
+                    playSound('shield-break');
+                    triggerScreenShake();
+                    createExplosion(head.x * gridSize + gridSize/2, head.y * gridSize + gridSize/2, 'shield-break');
+                    addFloatingText(head.x, head.y, "SHIELD BROKEN", "#FFFFFF");
+                    
+                    // Bounce Glitch Virus back or offset head to avoid instant overlap death on next frame
+                    if (head.x === glitchVirus.x && head.y === glitchVirus.y) {
+                        glitchVirus.x = Math.floor(Math.random() * tileCount);
+                        glitchVirus.y = 0;
+                    }
+                    
+                    // Keep moving forward but do not die!
+                    collided = false;
+                } else {
+                    handleGameOver();
+                    return;
+                }
+            }
+
+            // Insert new head at front
+            snake.unshift(head);
+
+            // Food collision check
+            if (head.x === food.x && head.y === food.y) {
+                handleFoodConsumption();
+            } else {
+                // Remove tail if didn't eat
+                snake.pop();
+            }
+
+            // Update Particle FX & Floating Texts
+            updateParticles();
+            updateFloatingTexts();
+
+            // Render Frame
+            draw();
+        }
+
+        // AI Pathing for Glitch Virus
+        function updateGlitchVirus() {
+            glitchVirus.moveTick++;
+            
+            // Move speed is slower than snake (moves every 2 steps)
+            if (glitchVirus.moveTick % 2 === 0) {
+                // Randomly decide to pivot directions to wanders around
+                if (Math.random() < 0.15 || glitchVirus.moveTick % 16 === 0) {
+                    const dirs = [
+                        { x: 1, y: 0 }, { x: -1, y: 0 },
+                        { x: 0, y: 1 }, { x: 0, y: -1 }
+                    ];
+                    const randomDir = dirs[Math.floor(Math.random() * dirs.length)];
+                    glitchVirus.vx = randomDir.x;
+                    glitchVirus.vy = randomDir.y;
+                }
+
+                // Compute next virus location
+                let nx = glitchVirus.x + glitchVirus.vx;
+                let ny = glitchVirus.y + glitchVirus.vy;
+
+                // Wall bouncing logic
+                if (nx < 0 || nx >= tileCount) {
+                    glitchVirus.vx *= -1;
+                    nx = glitchVirus.x + glitchVirus.vx;
+                }
+                if (ny < 0 || ny >= tileCount) {
+                    glitchVirus.vy *= -1;
+                    ny = glitchVirus.y + glitchVirus.vy;
+                }
+
+                glitchVirus.x = nx;
+                glitchVirus.y = ny;
+            }
+        }
+
+        function handleFoodConsumption() {
+            // Update Combo Stack
+            comboCount++;
+            comboTimer = comboMaxTimer;
+            comboBadge.classList.remove('hidden');
+
+            let baseReward = 100;
+            let label = "+100";
+            let color = '#10B981';
+
+            if (food.type === 'normal') {
+                baseReward = 100;
+                playSound('eat');
+            } else if (food.type === 'gold') {
+                baseReward = 300;
+                label = "+300";
+                color = '#F59E0B';
+                playSound('gold');
+            } else if (food.type === 'slow') {
+                baseReward = 150;
+                label = "TIME SLOW";
+                color = '#06B6D4';
+                playSound('powerup');
+                powerUpTimers.slow = 30; // ~5 seconds based on game loop frequency
+                adjustSpeed(baseSpeed * 1.6);
+            } else if (food.type === 'shrink') {
+                baseReward = 100;
+                label = "BODY SHRINK";
+                color = '#D946EF';
+                playSound('powerup');
+                if (snake.length > 3) {
+                    snake.pop();
+                    snake.pop();
+                }
+            } else if (food.type === 'shield') {
+                baseReward = 120;
+                label = "SHIELD CONNECTED";
+                color = '#FFFFFF';
+                playSound('powerup');
+                hasShield = true;
+            }
+
+            // Calculate score with active Combo Multiplier
+            const finalEarned = baseReward * comboCount;
+            score += finalEarned;
+            
+            // Spawn Floating Text indicator on Canvas
+            const floatStr = `${label} x${comboCount} COMBO!`;
+            addFloatingText(food.x, food.y, floatStr, color);
+            
+            if (comboCount > 1) {
+                playSound('combo');
+            }
+
+            createExplosion(food.x * gridSize + gridSize/2, food.y * gridSize + gridSize/2, food.type);
+
+            // Update UI values
+            scoreEl.textContent = score;
+            if (score > highScore) {
+                highScore = score;
+                highScoreEl.textContent = highScore;
+                localStorage.setItem('snake_neon_high', highScore);
+            }
+
+            spawnFood();
+        }
+
+        function adjustSpeed(newSpeed) {
+            currentSpeed = Math.floor(newSpeed);
+            if (gameLoopInterval) {
+                clearInterval(gameLoopInterval);
+                gameLoopInterval = setInterval(gameStep, currentSpeed);
+            }
+        }
+
+        function triggerScreenShake() {
+            wrapper.classList.add('shake-element');
+            setTimeout(() => {
+                wrapper.classList.remove('shake-element');
+            }, 400);
+        }
+
+        function handleGameOver() {
+            isPlaying = false;
+            clearInterval(gameLoopInterval);
+            triggerScreenShake();
+            playSound('gameover');
+            
+            finalScoreEl.textContent = score;
+            finalBestEl.textContent = highScore;
+            
+            // Wait slightly for screen shake to finish before overlaying modal
+            setTimeout(() => {
+                gameOverOverlay.classList.remove('hidden');
+            }, 200);
+        }
+
+        function togglePause() {
+            if (!isPlaying) return;
+            isPaused = !isPaused;
+            if (isPaused) {
+                pauseOverlay.classList.remove('hidden');
+            } else {
+                pauseOverlay.classList.add('hidden');
+            }
+        }
+
+        // Neon Sparkle Particle System on Eat
+        function createExplosion(x, y, type) {
+            let color = '#10B981'; // green default
+            if (type === 'gold') color = '#F59E0B';
+            else if (type === 'slow') color = '#06B6D4';
+            else if (type === 'shrink') color = '#D946EF';
+            else if (type === 'shield') color = '#FFFFFF';
+            else if (type === 'shield-break') color = '#EF4444';
+            else if (type === 'portal') color = '#F97316';
+
+            const count = type === 'shield-break' ? 30 : 15;
+            const velocityScale = type === 'shield-break' ? 8 : 6;
+
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * velocityScale,
+                    vy: (Math.random() - 0.5) * velocityScale,
+                    radius: Math.random() * 3 + 1,
+                    alpha: 1,
+                    decay: Math.random() * 0.05 + 0.03,
+                    color: color
+                });
+            }
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha -= p.decay;
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        function drawParticles() {
+            particles.forEach(p => {
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = p.color;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+        }
+
+        // Floating Combo Damage-Style Numbers
+        function addFloatingText(tileX, tileY, text, color) {
+            floatingTexts.push({
+                x: tileX * gridSize + gridSize / 2,
+                y: tileY * gridSize - 10,
+                text: text,
+                color: color,
+                alpha: 1.0,
+                vy: -0.8, // floats upward
+                life: 30
+            });
+        }
+
+        function updateFloatingTexts() {
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                const ft = floatingTexts[i];
+                ft.y += ft.vy;
+                ft.life--;
+                ft.alpha = ft.life / 30;
+                if (ft.life <= 0) {
+                    floatingTexts.splice(i, 1);
+                }
+            }
+        }
+
+        function drawFloatingTexts() {
+            floatingTexts.forEach(ft => {
+                ctx.save();
+                ctx.globalAlpha = ft.alpha;
+                ctx.fillStyle = ft.color;
+                ctx.font = 'bold 10px Inter';
+                ctx.textAlign = 'center';
+                ctx.shadowBlur = 4;
+                ctx.shadowColor = ft.color;
+                ctx.fillText(ft.text, ft.x, ft.y);
+                ctx.restore();
+            });
+        }
+
+        // Master Canvas Draw Function
+        function draw() {
+            // Dark sci-fi layout background
+            ctx.fillStyle = 'rgba(3, 7, 18, 0.9)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Grid guidelines (very soft cyan lines for matrix grid vibe)
+            ctx.strokeStyle = 'rgba(16, 185, 129, 0.04)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < tileCount; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * gridSize, 0);
+                ctx.lineTo(i * gridSize, canvas.height);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(0, i * gridSize);
+                ctx.lineTo(canvas.width, i * gridSize);
+                ctx.stroke();
+            }
+
+            // Draw Portals (Wormholes)
+            ctx.save();
+            ctx.lineWidth = 2.5;
+            
+            // Orange Portal
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = portalA.color;
+            ctx.strokeStyle = portalA.color;
+            ctx.beginPath();
+            const pAx = portalA.x * gridSize + gridSize/2;
+            const pAy = portalA.y * gridSize + gridSize/2;
+            ctx.arc(pAx, pAy, gridSize/2 - 2, 0, Math.PI * 2);
+            ctx.stroke();
+            // Swirling dynamic dots inside orange portal
+            ctx.fillStyle = 'rgba(249, 115, 22, 0.2)';
+            ctx.fill();
+
+            // Blue Portal
+            ctx.shadowColor = portalB.color;
+            ctx.strokeStyle = portalB.color;
+            ctx.beginPath();
+            const pBx = portalB.x * gridSize + gridSize/2;
+            const pBy = portalB.y * gridSize + gridSize/2;
+            ctx.arc(pBx, pBy, gridSize/2 - 2, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(59, 130, 246, 0.2)';
+            ctx.fill();
+            ctx.restore();
+
+            // Draw Obstacles in Obstacle Mode
+            if (currentMode === 'obstacle') {
+                ctx.save();
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = '#F43F5E';
+                ctx.fillStyle = 'rgba(244, 63, 94, 0.85)'; // Neon Red barrier
+                for (let obs of obstacles) {
+                    ctx.beginPath();
+                    // Draw digital hazard style block
+                    ctx.roundRect(obs.x * gridSize + 1, obs.y * gridSize + 1, gridSize - 2, gridSize - 2, 4);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+
+            // Draw Glitch AI Virus (Floating Skull)
+            ctx.save();
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = '#EF4444';
+            ctx.fillStyle = '#EF4444';
+            const vx = glitchVirus.x * gridSize + gridSize/2;
+            const vy = glitchVirus.y * gridSize + gridSize/2;
+            ctx.beginPath();
+            ctx.arc(vx, vy, gridSize/2 - 3, 0, Math.PI * 2);
+            ctx.fill();
+            // Tiny skull eyes inside virus
+            ctx.fillStyle = '#000000';
+            ctx.beginPath();
+            ctx.arc(vx - 3, vy - 1, 1.8, 0, Math.PI*2);
+            ctx.arc(vx + 3, vy - 1, 1.8, 0, Math.PI*2);
+            ctx.fill();
+            // Mouth glitch rect
+            ctx.fillRect(vx - 3, vy + 3, 6, 2);
+            ctx.restore();
+
+            // Draw Snake
+            snake.forEach((segment, idx) => {
+                const isHead = idx === 0;
+                ctx.save();
+                
+                if (isHead) {
+                    // Head: glowing neon cyan/pink
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = '#EC4899';
+                    ctx.fillStyle = '#F472B6';
+                } else {
+                    // Body Gradient fading to dark blue
+                    ctx.shadowBlur = 6;
+                    ctx.shadowColor = '#818CF8';
+                    const ratio = idx / snake.length;
+                    ctx.fillStyle = `rgba(99, 102, 241, ${1 - ratio * 0.6})`;
+                }
+
+                ctx.beginPath();
+                ctx.roundRect(
+                    segment.x * gridSize + 1, 
+                    segment.y * gridSize + 1, 
+                    gridSize - 2, 
+                    gridSize - 2, 
+                    isHead ? 6 : 4
+                );
+                ctx.fill();
+
+                // Eyes on Snake Head
+                if (isHead) {
+                    ctx.fillStyle = '#030712';
+                    ctx.shadowBlur = 0;
+                    
+                    // Eyes layout adapt according to current direction
+                    let e1x = 0, e1y = 0, e2x = 0, e2y = 0;
+                    if (direction.x !== 0) { // Moving Horizontally
+                        e1x = segment.x * gridSize + (direction.x > 0 ? 12 : 6);
+                        e1y = segment.y * gridSize + 5;
+                        e2x = segment.x * gridSize + (direction.x > 0 ? 12 : 6);
+                        e2y = segment.y * gridSize + 13;
+                    } else { // Moving Vertically
+                        e1x = segment.x * gridSize + 5;
+                        e1y = segment.y * gridSize + (direction.y > 0 ? 12 : 6);
+                        e2x = segment.x * gridSize + 13;
+                        e2y = segment.y * gridSize + (direction.y > 0 ? 12 : 6);
+                    }
+                    ctx.beginPath();
+                    ctx.arc(e1x, e1y, 2, 0, Math.PI * 2);
+                    ctx.arc(e2x, e2y, 2, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Active Electromagnetic Shield Indicator Glow Ring around snake head
+                    if (hasShield) {
+                        ctx.restore();
+                        ctx.save();
+                        activeShieldPulse += 0.25;
+                        const pulseRadius = gridSize * 1.1 + Math.sin(activeShieldPulse) * 2;
+                        ctx.shadowBlur = 10;
+                        ctx.shadowColor = '#FFFFFF';
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.arc(
+                            segment.x * gridSize + gridSize/2,
+                            segment.y * gridSize + gridSize/2,
+                            pulseRadius / 2,
+                            0,
+                            Math.PI * 2
+                        );
+                        ctx.stroke();
+                    }
+                }
+
+                ctx.restore();
+            });
+
+            // Draw Food Core
+            ctx.save();
+            let foodColor = '#10B981'; // Green (Standard)
+            let neonColor = '#34D399';
+            if (food.type === 'gold') {
+                foodColor = '#F59E0B'; // Yellow/Gold
+                neonColor = '#FBBF24';
+            } else if (food.type === 'slow') {
+                foodColor = '#06B6D4'; // Blue/Cyan
+                neonColor = '#22D3EE';
+            } else if (food.type === 'shrink') {
+                foodColor = '#D946EF'; // Magenta/Purple
+                neonColor = '#E879F9';
+            } else if (food.type === 'shield') {
+                foodColor = '#FFFFFF'; // Shield
+                neonColor = '#FFFFFF';
+            }
+
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = foodColor;
+            ctx.fillStyle = neonColor;
+            
+            ctx.beginPath();
+            // Draw spherical energy core
+            const cx = food.x * gridSize + gridSize/2;
+            const cy = food.y * gridSize + gridSize/2;
+            ctx.arc(cx, cy, gridSize/2 - 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Inner core dot
+            ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath();
+            ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            // Render active explosions and floating text combos
+            drawParticles();
+            drawFloatingTexts();
+
+            // Render Dynamic UI Status Bar overlays top of canvas
+            if (comboCount > 0) {
+                ctx.save();
+                ctx.fillStyle = 'rgba(249, 115, 22, 0.15)';
+                ctx.fillRect(0, 0, canvas.width, 4);
+                
+                // Bar width based on remaining combo timer ratio
+                const timerRatio = comboTimer / comboMaxTimer;
+                ctx.fillStyle = '#F97316';
+                ctx.fillRect(0, 0, canvas.width * timerRatio, 4);
+                ctx.restore();
+            }
+        }
+
+        // Handle Key Press Movement Controls
+        window.addEventListener('keydown', (e) => {
+            const key = e.key;
+
+            // Space to Pause
+            if (key === ' ') {
+                e.preventDefault();
+                togglePause();
+                return;
+            }
+
+            // Direction key block mapping
+            if (['ArrowUp', 'w', 'W'].includes(key)) {
+                if (direction.y === 0) nextDirection = { x: 0, y: -1 };
+            } else if (['ArrowDown', 's', 'S'].includes(key)) {
+                if (direction.y === 0) nextDirection = { x: 0, y: 1 };
+            } else if (['ArrowLeft', 'a', 'A'].includes(key)) {
+                if (direction.x === 0) nextDirection = { x: -1, y: 0 };
+            } else if (['ArrowRight', 'd', 'D'].includes(key)) {
+                if (direction.x === 0) nextDirection = { x: 1, y: 0 };
+            }
+        });
+
+        // Touch swipe gestures on game block
+        let touchStartX = 0;
+        let touchStartY = 0;
+        
+        canvas.addEventListener('touchstart', (e) => {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        }, { passive: true });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (!touchStartX || !touchStartY) return;
+            e.preventDefault(); // Prevents bounce scrolling on mobile
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', (e) => {
+            if (!touchStartX || !touchStartY) return;
+            
+            const diffX = e.changedTouches[0].clientX - touchStartX;
+            const diffY = e.changedTouches[0].clientY - touchStartY;
+            const threshold = 30; // Min drag distance
+
+            if (Math.abs(diffX) > Math.abs(diffY)) {
+                // Horizontal Swipe
+                if (Math.abs(diffX) > threshold) {
+                    if (diffX > 0 && direction.x === 0) nextDirection = { x: 1, y: 0 };
+                    else if (diffX < 0 && direction.x === 0) nextDirection = { x: -1, y: 0 };
+                }
+            } else {
+                // Vertical Swipe
+                if (Math.abs(diffY) > threshold) {
+                    if (diffY > 0 && direction.y === 0) nextDirection = { x: 0, y: 1 };
+                    else if (diffY < 0 && direction.y === 0) nextDirection = { x: 0, y: -1 };
+                }
+            }
+            touchStartX = 0;
+            touchStartY = 0;
+        }, { passive: true });
+
+        // Bind Action buttons on On-Screen Dpad
+        ctrlUp.addEventListener('click', () => { if (direction.y === 0) nextDirection = { x: 0, y: -1 }; playSound('click'); });
+        ctrlDown.addEventListener('click', () => { if (direction.y === 0) nextDirection = { x: 0, y: 1 }; playSound('click'); });
+        ctrlLeft.addEventListener('click', () => { if (direction.x === 0) nextDirection = { x: -1, y: 0 }; playSound('click'); });
+        ctrlRight.addEventListener('click', () => { if (direction.x === 0) nextDirection = { x: 1, y: 0 }; playSound('click'); });
+        ctrlPause.addEventListener('click', () => { togglePause(); playSound('click'); });
+
+        // Core App Button Hooks
+        btnStart.addEventListener('click', () => {
+            playSound('click');
+            initGame();
+        });
+
+        btnRestart.addEventListener('click', () => {
+            playSound('click');
+            initGame();
+        });
+
+        btnResume.addEventListener('click', () => {
+            playSound('click');
+            togglePause();
+        });
+
+        // Help Instructions Logic
+        btnHelp.addEventListener('click', () => {
+            helpModal.classList.remove('hidden');
+            playSound('click');
+        });
+        btnCloseHelp.addEventListener('click', () => {
+            helpModal.classList.add('hidden');
+            playSound('click');
+        });
+        btnAgree.addEventListener('click', () => {
+            helpModal.classList.add('hidden');
+            playSound('click');
+        });
+
+        // Initial paint to show grid preview
+        draw();
+    </script>
+</body>
+</html>
